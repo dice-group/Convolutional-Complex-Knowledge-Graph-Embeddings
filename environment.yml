@@ -126,5 +126,5 @@ dependencies:
     - widgetsnbextension==3.5.1
     - wrapt==1.12.1
     - zipp==3.1.0
-prefix: /home/cdemir/anaconda3/envs/hypercomplex
+prefix: /home/cdemir/anaconda3/envs/conex
 
