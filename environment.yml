@@ -1,4 +1,4 @@
-name: quat
+name: conex
 channels:
   - pytorch
   - conda-forge
