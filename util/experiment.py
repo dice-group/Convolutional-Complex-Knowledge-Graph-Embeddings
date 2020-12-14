@@ -1,8 +1,6 @@
 import json
 from util.helper_funcs import *
 from util.helper_classes import HeadAndRelationBatchLoader
-from models.quat_models import *
-from models.octonian_models import *
 from models.complex_models import *
 from models.real_models import *
 from torch.optim.lr_scheduler import ExponentialLR
@@ -10,13 +8,16 @@ from collections import defaultdict
 from torch.utils.data import DataLoader
 import pandas as pd
 
-# CUDA for PyTorch
+# Fixing the random sees.
 seed = 1
 np.random.seed(seed)
 torch.manual_seed(seed)
 
 
 class Experiment:
+    """
+    Experiment class for training and evaluation
+    """
 
     def __init__(self, *, dataset, model, parameters, ith_logger, store_emb_dataframe=False):
 
@@ -40,6 +41,7 @@ class Experiment:
 
         # Algorithm dependent hyper-parameters
         self.kwargs = parameters
+        self.kwargs['model'] = self.model
 
         self.storage_path, _ = create_experiment_folder()
         self.logger = create_logger(name=self.model + ith_logger, p=self.storage_path)
@@ -76,10 +78,14 @@ class Experiment:
             targets[idx, er_vocab[pair]] = self.positive_label
         return np.array(batch), torch.FloatTensor(targets)
 
-    def evaluate_one_to_n(self, model, data, log_info):
+    def evaluate_one_to_n(self, model, data, log_info='Evaluate one to N.'):
+        """
+         Evaluate model
+        """
         self.logger.info(log_info)
         hits = []
         ranks = []
+        total_test_loss = 0.0
         for i in range(10):
             hits.append([])
         test_data_idxs = self.get_data_idxs(data)
@@ -95,7 +101,7 @@ class Experiment:
                 r_idx = r_idx.cuda()
                 e2_idx = e2_idx.cuda()
             predictions = model.forward_head_batch(e1_idx=e1_idx, rel_idx=r_idx)
-
+            total_test_loss += model.loss(predictions, _).cpu().detach().numpy()  # store also test error.
             for j in range(data_batch.shape[0]):
                 filt = er_vocab[(data_batch[j][0], data_batch[j][1])]
                 target_value = predictions[j, e2_idx[j]].item()
@@ -113,14 +119,27 @@ class Experiment:
                         hits[hits_level].append(1.0)
 
         hit_1 = sum(hits[0]) / (float(len(data)))
-        self.logger.info('Hits @10: {0}'.format(sum(hits[9]) / (float(len(data)))))
-        self.logger.info('Hits @3: {0}'.format(sum(hits[2]) / (float(len(data)))))
-        self.logger.info('Hits @1: {0}'.format(hit_1))
-        self.logger.info(('Mean rank: {0}'.format(np.mean(ranks))))
-        self.logger.info('Mean reciprocal rank: {0}'.format(np.mean(1. / np.array(ranks))))
-        return hit_1
+        hit_3 = sum(hits[2]) / (float(len(data)))
+        hit_10 = sum(hits[9]) / (float(len(data)))
+        mean_rank = np.mean(ranks)
+        mean_reciprocal_rank = np.mean(1. / np.array(ranks))
+
+        self.logger.info(f'Hits @10: {hit_10}')
+        self.logger.info(f'Hits @3: {hit_3}')
+        self.logger.info(f'Hits @1: {hit_1}')
+        self.logger.info(f'Mean rank: {mean_rank}')
+        self.logger.info(f'Mean reciprocal rank: {mean_reciprocal_rank}')
+        self.logger.info(f'Total Test Loss: {total_test_loss}')
+
+        results = {'H@1': hit_1, 'H@3': hit_3, 'H@10': hit_10,
+                   'MR': mean_rank, 'MRR': mean_reciprocal_rank, 'TestLoss': total_test_loss}
+
+        return results
 
     def train_and_eval(self):
+        """
+        Train and evaluate phases.
+        """
 
         self.entity_idxs = {self.dataset.entities[i]: i for i in range(len(self.dataset.entities))}
         self.relation_idxs = {self.dataset.relations[i]: i for i in range(len(self.dataset.relations))}
@@ -170,7 +189,6 @@ class Experiment:
         self.logger.info("{0} starts training".format(model.name))
         num_param = sum([p.numel() for p in model.parameters()])
         self.logger.info("'Number of free parameters: {0}".format(num_param))
-
         if self.kwargs['scoring_technique'] == 'KvsAll':
             model = self.k_vs_all_training_schema(model)
         elif self.kwargs['scoring_technique'] == 'AllvsAll':
@@ -184,7 +202,6 @@ class Experiment:
             json.dump(self.kwargs, file_descriptor)
         torch.save(model.state_dict(), self.storage_path + '/model.pt')
         #     pd.DataFrame(index=self.dataset.entities, data=entity_emb.numpy()).to_csv(TypeError: can't convert CUDA tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
-   
         if self.store_emb_dataframe:
             entity_emb, emb_rel = model.get_embeddings()
             pd.DataFrame(index=self.dataset.entities, data=entity_emb.numpy()).to_csv(
@@ -192,7 +209,50 @@ class Experiment:
             pd.DataFrame(index=self.dataset.relations, data=emb_rel.numpy()).to_csv(
                 '{0}/{1}_relation_embeddings.csv'.format(self.storage_path, model.name))
         if self.dataset.test_data:
-            self.evaluate_one_to_n(model, self.dataset.test_data, 'Standard Link Prediction evaluation on Testing Data')
+            results = self.evaluate_one_to_n(model, self.dataset.test_data,
+                                             'Standard Link Prediction evaluation on Testing Data')
+            with open(self.storage_path + '/results.json', 'w') as file_descriptor:
+                results['Number_param'] = num_param
+                results.update(self.kwargs)
+                json.dump(results, file_descriptor)
+
+    def k_vs_all_training_schema(self, model):
+        self.logger.info('k_vs_all_training_schema starts')
+
+        train_data_idxs = self.get_data_idxs(self.dataset.train_data)
+        losses = []
+
+        head_to_relation_batch = DataLoader(
+            HeadAndRelationBatchLoader(er_vocab=self.get_er_vocab(train_data_idxs), num_e=len(self.dataset.entities)),
+            batch_size=self.batch_size, num_workers=self.num_of_workers, shuffle=True)
+
+        for it in range(1, self.num_of_epochs + 1):
+            loss_of_epoch = 0.0
+            # given a triple (e_i,r_k,e_j), we generate two sets of corrupted triples
+            # 1) (e_i,r_k,x) where x \in Entities AND (e_i,r_k,x) \not \in KG
+            for head_batch in head_to_relation_batch:  # mini batches
+                e1_idx, r_idx, targets = head_batch
+                if self.cuda:
+                    targets = targets.cuda()
+                    r_idx = r_idx.cuda()
+                    e1_idx = e1_idx.cuda()
+
+                if self.label_smoothing:
+                    targets = ((1.0 - self.label_smoothing) * targets) + (1.0 / targets.size(1))
+
+                    self.optimizer.zero_grad()
+                    loss = model.forward_head_and_loss(e1_idx, r_idx, targets)
+                    loss_of_epoch += loss.item()
+                    loss.backward()
+                    self.optimizer.step()
+            if self.decay_rate:
+                self.scheduler.step()
+
+            losses.append(loss_of_epoch)
+        self.logger.info('Loss at {0}.th epoch:{1}'.format(it, loss_of_epoch))
+        np.savetxt(self.storage_path + "/loss_per_epoch.csv", np.array(losses), delimiter=",")
+        model.eval()
+        return model
 
     def all_vs_all_training_schema(self, model):
         self.logger.info('all_vs_all_training_schema starts')
@@ -239,47 +299,6 @@ class Experiment:
                     loss.backward()
                     self.optimizer.step()
 
-            if self.decay_rate:
-                self.scheduler.step()
-
-            losses.append(loss_of_epoch)
-        self.logger.info('Loss at {0}.th epoch:{1}'.format(it, loss_of_epoch))
-        losses = np.array(losses)
-        np.savetxt(self.storage_path + "/loss_per_epoch.csv", losses, delimiter=",")
-        model.eval()
-        return model
-
-    def k_vs_all_training_schema(self, model):
-        self.logger.info('k_vs_all_training_schema starts')
-
-        train_data_idxs = self.get_data_idxs(self.dataset.train_data)
-        losses = []
-
-        loss_of_epoch = 0
-        it = 0
-        head_to_relation_batch = DataLoader(
-            HeadAndRelationBatchLoader(er_vocab=self.get_er_vocab(train_data_idxs), num_e=len(self.dataset.entities)),
-            batch_size=self.batch_size, num_workers=self.num_of_workers, shuffle=True)
-
-        for it in range(1, self.num_of_epochs + 1):
-            loss_of_epoch = 0.0
-            # given a triple (e_i,r_k,e_j), we generate two sets of corrupted triples
-            # 1) (e_i,r_k,x) where x \in Entities AND (e_i,r_k,x) \not \in KG
-            for head_batch in head_to_relation_batch:  # mini batches
-                e1_idx, r_idx, targets = head_batch
-                if self.cuda:
-                    targets = targets.cuda()
-                    r_idx = r_idx.cuda()
-                    e1_idx = e1_idx.cuda()
-
-                if self.label_smoothing:
-                    targets = ((1.0 - self.label_smoothing) * targets) + (1.0 / targets.size(1))
-
-                    self.optimizer.zero_grad()
-                    loss = model.forward_head_and_loss(e1_idx, r_idx, targets)
-                    loss_of_epoch += loss.item()
-                    loss.backward()
-                    self.optimizer.step()
             if self.decay_rate:
                 self.scheduler.step()
 

@@ -111,6 +111,7 @@ dependencies:
     - pyzmq==19.0.2
     - qtconsole==4.7.7
     - qtpy==1.9.0
+    - seaborn==0.11.0
     - send2trash==1.5.0
     - tensorboard==1.15.0
     - tensorflow-estimator==1.15.1
@@ -126,5 +127,4 @@ dependencies:
     - widgetsnbextension==3.5.1
     - wrapt==1.12.1
     - zipp==3.1.0
-prefix: /home/cdemir/anaconda3/envs/conex
-
+prefix: /home/demir/anaconda3/envs/conex
