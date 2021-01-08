@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 import pandas as pd
 import numpy as np
 import torch
+
 # CUDA for PyTorch
 seed = 1
 np.random.seed(seed)
@@ -158,15 +159,18 @@ class Reproduce:
                 if '_reverse' in k:
                     continue
                 # Given (h,r,t)
-                reciprocal_tail_entity_rankings = 1. / np.array(v)  # ranks_t => RANKS of true tails
-                reciprocal_head_entity_rankings = 1. / np.array(
-                    rank_per_relation[k + '_reverse'])  # ranks_t => RANKS of true
+                reciprocal_tail_entity_rankings = 1. / np.array(v)  # ranks_t => reciprocal ranks of tail entities.
+
+                if k + '_reverse' in rank_per_relation:
+                    reciprocal_head_entity_rankings = 1. / np.array(
+                        rank_per_relation[k + '_reverse'])  # ranks_h => reciprocal rank of head entities.
+                else:
+                    # This entails that link prediction per relation results will be based'tail entity rankings.')
+                    reciprocal_head_entity_rankings = np.ones(len(reciprocal_tail_entity_rankings))
+
                 assert len(reciprocal_head_entity_rankings) == len(reciprocal_tail_entity_rankings)
                 sum_reciprocal_ranks = np.sum(reciprocal_head_entity_rankings + reciprocal_tail_entity_rankings)
                 print('MRR:{0}: {1}'.format(k, sum_reciprocal_ranks / ((float(len(v))) * 2)))
-            # with directions
-            # for k, v in rank_per_relation.items():
-            #    print('MRR:{0}: {1}'.format(k, np.mean(1. / np.array(v))))
 
     def reproduce(self, model_path, data_path, model_name, per_rel_flag_=False, tail_pred_constraint=False,
                   out_of_vocab_flag=False):
@@ -185,6 +189,19 @@ class Reproduce:
         print('Link Prediction Results on Testing')
         self.evaluate_link_prediction(model, self.dataset.test_data, per_rel_flag_)
 
+    def get_embeddings(self, model_path, data_path, model_name, per_rel_flag_=False, tail_pred_constraint=False,
+                       out_of_vocab_flag=False):
+
+        self.dataset = Data(data_dir=data_path, tail_pred_constraint=tail_pred_constraint,
+                            out_of_vocab_flag=out_of_vocab_flag)
+
+        with open(model_path + '/settings.json', 'r') as file_descriptor:
+            self.kwargs = json.load(file_descriptor)
+
+        model = self.load_model(model_path=model_path, model_name=model_name)
+        entity_emb, rel_emb = model.get_embeddings()
+        return (entity_emb, np.array(self.dataset.entities)), (rel_emb, np.array(self.dataset.relations))
+
     def load_model(self, model_path, model_name):
         self.model = model_name
         with open(model_path + '/settings.json', 'r') as file_descriptor:
@@ -193,24 +210,12 @@ class Reproduce:
         model = None
         if self.model == 'ConEx':
             model = ConEx(self.kwargs)
-        elif self.model == 'OMult':
-            model = OMult(self.kwargs)
-        elif self.model == 'ConvO':
-            model = ConvO(self.kwargs)
-        elif self.model == 'QMult':
-            model = QMult(self.kwargs)
-        elif self.model == 'ConvQ':
-            model = ConvQ(self.kwargs)
         elif self.model == 'Tucker':
             model = Tucker(self.kwargs)
-        elif self.model == 'Rescal':
-            model = Rescal(self.kwargs)
         elif self.model == 'Distmult':
             model = Distmult(self.kwargs)
         elif self.model == 'Complex':
             model = Complex(self.kwargs)
-        elif self.model == 'Conve':
-            model = Conve(self.kwargs)
         else:
             print(self.model, ' is not valid name')
             raise ValueError

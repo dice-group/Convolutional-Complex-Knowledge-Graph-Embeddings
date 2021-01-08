@@ -136,18 +136,7 @@ class Experiment:
 
         return results
 
-    def train_and_eval(self):
-        """
-        Train and evaluate phases.
-        """
-
-        self.entity_idxs = {self.dataset.entities[i]: i for i in range(len(self.dataset.entities))}
-        self.relation_idxs = {self.dataset.relations[i]: i for i in range(len(self.dataset.relations))}
-
-        self.kwargs.update({'num_entities': len(self.entity_idxs),
-                            'num_relations': len(self.relation_idxs)})
-        self.kwargs.update(self.dataset.info)
-
+    def __describe_exp(self):
         self.logger.info("Info pertaining to dataset:{0}".format(self.dataset.info))
         self.logger.info("Number of triples in training data:{0}".format(len(self.dataset.train_data)))
         self.logger.info("Number of triples in validation data:{0}".format(len(self.dataset.valid_data)))
@@ -166,6 +155,66 @@ class Experiment:
                 self.kwargs['input_dropout'] = 0
                 self.kwargs['hidden_dropout'] = 0
 
+    def eval(self, model):
+        """
+        trained model
+        """
+        if self.dataset.test_data:
+            results = self.evaluate_one_to_n(model, self.dataset.test_data,
+                                             'Standard Link Prediction evaluation on Testing Data')
+            with open(self.storage_path + '/results.json', 'w') as file_descriptor:
+                results['Number_param'] = num_param
+                results.update(self.kwargs)
+                json.dump(results, file_descriptor)
+
+    def train(self, model):
+        """ Training."""
+        if self.cuda:
+            model.cuda()
+
+        model.init()
+        self.optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate)
+        if self.decay_rate:
+            self.scheduler = ExponentialLR(self.optimizer, self.decay_rate)
+
+        self.logger.info("{0} starts training".format(model.name))
+        num_param = sum([p.numel() for p in model.parameters()])
+        self.logger.info("'Number of free parameters: {0}".format(num_param))
+
+        if self.kwargs['scoring_technique'] == 'KvsAll':
+            model = self.k_vs_all_training_schema(model)
+        elif self.kwargs['scoring_technique'] == 'AllvsAll':
+            raise NotImplementedError('Implementation of AllvsAll raises an exception if cuda used.')
+        # We may implement the negative sampling technique.
+        else:
+            raise ValueError
+
+        # Store the setting.
+        with open(self.storage_path + '/settings.json', 'w') as file_descriptor:
+            json.dump(self.kwargs, file_descriptor)
+
+        # Save the trained model.
+        torch.save(model.state_dict(), self.storage_path + '/model.pt')
+        # Save embeddings of entities and relations in csv file.
+        if self.store_emb_dataframe:
+            entity_emb, emb_rel = model.get_embeddings()
+            # pd.DataFrame(index=self.dataset.entities, data=entity_emb.numpy()).to_csv(TypeError: can't convert CUDA tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+            pd.DataFrame(index=self.dataset.entities, data=entity_emb.numpy()).to_csv(
+                '{0}/{1}_entity_embeddings.csv'.format(self.storage_path, model.name))
+            pd.DataFrame(index=self.dataset.relations, data=emb_rel.numpy()).to_csv(
+                '{0}/{1}_relation_embeddings.csv'.format(self.storage_path, model.name))
+
+    def train_and_eval(self):
+        """
+        Train and evaluate phases.
+        """
+
+        self.entity_idxs = {self.dataset.entities[i]: i for i in range(len(self.dataset.entities))}
+        self.relation_idxs = {self.dataset.relations[i]: i for i in range(len(self.dataset.relations))}
+
+        self.kwargs.update({'num_entities': len(self.entity_idxs),
+                            'num_relations': len(self.relation_idxs)})
+        self.kwargs.update(self.dataset.info)
         model = None
         if self.model == 'ConEx':
             model = ConEx(self.kwargs)
@@ -179,42 +228,8 @@ class Experiment:
             print(self.model, ' is not valid name')
             raise ValueError
 
-        if self.cuda:
-            model.cuda()
-        model.init()
-        self.optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate)
-        if self.decay_rate:
-            self.scheduler = ExponentialLR(self.optimizer, self.decay_rate)
-
-        self.logger.info("{0} starts training".format(model.name))
-        num_param = sum([p.numel() for p in model.parameters()])
-        self.logger.info("'Number of free parameters: {0}".format(num_param))
-        if self.kwargs['scoring_technique'] == 'KvsAll':
-            model = self.k_vs_all_training_schema(model)
-        elif self.kwargs['scoring_technique'] == 'AllvsAll':
-            raise NotImplementedError('Implementation of AllvsAll raises an exception if cuda used.')
-            # model = self.all_vs_all_training_schema(model)
-            # We investigated all vs all training schema inspired by 1vsN/ KvsAll. However we did not include it into
-            # our experiments.
-        else:
-            raise ValueError
-        with open(self.storage_path + '/settings.json', 'w') as file_descriptor:
-            json.dump(self.kwargs, file_descriptor)
-        torch.save(model.state_dict(), self.storage_path + '/model.pt')
-        #     pd.DataFrame(index=self.dataset.entities, data=entity_emb.numpy()).to_csv(TypeError: can't convert CUDA tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
-        if self.store_emb_dataframe:
-            entity_emb, emb_rel = model.get_embeddings()
-            pd.DataFrame(index=self.dataset.entities, data=entity_emb.numpy()).to_csv(
-                '{0}/{1}_entity_embeddings.csv'.format(self.storage_path, model.name))
-            pd.DataFrame(index=self.dataset.relations, data=emb_rel.numpy()).to_csv(
-                '{0}/{1}_relation_embeddings.csv'.format(self.storage_path, model.name))
-        if self.dataset.test_data:
-            results = self.evaluate_one_to_n(model, self.dataset.test_data,
-                                             'Standard Link Prediction evaluation on Testing Data')
-            with open(self.storage_path + '/results.json', 'w') as file_descriptor:
-                results['Number_param'] = num_param
-                results.update(self.kwargs)
-                json.dump(results, file_descriptor)
+        self.train(model)
+        self.eval(model)
 
     def k_vs_all_training_schema(self, model):
         self.logger.info('k_vs_all_training_schema starts')
@@ -225,6 +240,9 @@ class Experiment:
         head_to_relation_batch = DataLoader(
             HeadAndRelationBatchLoader(er_vocab=self.get_er_vocab(train_data_idxs), num_e=len(self.dataset.entities)),
             batch_size=self.batch_size, num_workers=self.num_of_workers, shuffle=True)
+
+        # To indicate that model is not trained if for if self.num_of_epochs=0
+        loss_of_epoch, it = -1, -1
 
         for it in range(1, self.num_of_epochs + 1):
             loss_of_epoch = 0.0
@@ -250,11 +268,14 @@ class Experiment:
 
             losses.append(loss_of_epoch)
         self.logger.info('Loss at {0}.th epoch:{1}'.format(it, loss_of_epoch))
-        np.savetxt(self.storage_path + "/loss_per_epoch.csv", np.array(losses), delimiter=",")
+        np.savetxt(fname=self.storage_path + "/loss_per_epoch.csv", X=np.array(losses), delimiter=",")
         model.eval()
         return model
 
     def all_vs_all_training_schema(self, model):
+        # We investigated all vs all training schema inspired by 1vsN/ KvsAll. However we did not include it into
+        # our experiments.
+        raise NotImplementedError
         self.logger.info('all_vs_all_training_schema starts')
 
         train_data_idxs = self.get_data_idxs(self.dataset.train_data)

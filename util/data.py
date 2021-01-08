@@ -28,13 +28,19 @@ class Data:
         else:
             self.test_data = self.load_data(data_dir, data_type="test", add_reciprical=reverse)
         self.data = self.train_data + self.valid_data + self.test_data
+        # The order of entities is important
         self.entities = self.get_entities(self.data)
         self.train_relations = self.get_relations(self.train_data)
         self.valid_relations = self.get_relations(self.valid_data)
         self.test_relations = self.get_relations(self.test_data)
+        # The order of entities is important
         self.relations = self.train_relations + [i for i in self.valid_relations \
                                                  if i not in self.train_relations] + [i for i in self.test_relations \
                                                                                       if i not in self.train_relations]
+        # Sanity checking on the framework.
+        assert set(self.relations) == set(self.train_relations).union(
+            set(self.valid_relations).union(set(self.test_relations)))
+
         if train_plus_valid:
             self.train_data.extend(self.valid_data)
             self.valid_data = []
@@ -42,10 +48,10 @@ class Data:
         if out_of_vocab_flag:
             print('Triples containing out-of-vocabulary entities will be removed from validation and training splits.')
             ent = set(self.get_entities(self.train_data))
-            print('|G^valid|={0}\t|G^test|={1}'.format(len(self.valid_data),len(self.test_data)))
+            print('|G^valid|={0}\t|G^test|={1}'.format(len(self.valid_data), len(self.test_data)))
             self.valid_data = [i for i in self.valid_data if i[0] in ent and i[2] in ent]
             self.test_data = [i for i in self.test_data if i[0] in ent and i[2] in ent]
-            print('After removal, |G^valid|={0}\t|G^test|={1}'.format(len(self.valid_data),len(self.test_data)))
+            print('After removal, |G^valid|={0}\t|G^test|={1}'.format(len(self.valid_data), len(self.test_data)))
 
     @staticmethod
     def load_data(data_dir, data_type, add_reciprical=True):

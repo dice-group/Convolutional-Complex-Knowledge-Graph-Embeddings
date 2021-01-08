@@ -3,7 +3,7 @@ from models.ensemble import Ensemble
 
 run_WN18 = True
 run_FB15K_237 = True
-run_YAGO3_10 = False
+run_YAGO3_10 = True
 run_FB15K = True
 run_WN18RR = True
 
@@ -33,6 +33,10 @@ if run_FB15K_237:
                           model_name='ConEx')
     print('###########################################{0}##################################################'.format(
         fb15k237_path))
+if run_WN18RR:
+    print('###########################################{0}##################################################'.format(
+        wn18rr_path))
+    Reproduce().reproduce(model_path='PretrainedModels/WN18RR/ConEx', data_path="%s/" % wn18rr_path, model_name='ConEx')
 
 if run_YAGO3_10:  # RAM must be greater than 16GPU
     print('###########################################{0}##################################################'.format(
@@ -41,8 +45,3 @@ if run_YAGO3_10:  # RAM must be greater than 16GPU
                           model_name='ConEx')
     print('###########################################{0}##################################################'.format(
         yago3_10_path))
-
-if run_WN18RR:
-    print('###########################################{0}##################################################'.format(
-        wn18rr_path))
-    Reproduce().reproduce(model_path='PretrainedModels/WN18RR/ConEx', data_path="%s/" % wn18rr_path,model_name='ConEx')
