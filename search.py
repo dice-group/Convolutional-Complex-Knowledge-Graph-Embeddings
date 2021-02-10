@@ -9,7 +9,7 @@ for kg_root in datasets:
     for model_name in models:
         data_dir = 'KGs/' + kg_root + '/'
         config = {
-            'num_of_epochs': [0],  # no tuning
+            'num_of_epochs': [2000],  # no tuning
             'batch_size': [1024],  # no tuning.
             'learning_rate': [.001],  # no tuning.
             'label_smoothing': [0.1],  # no tuning.
