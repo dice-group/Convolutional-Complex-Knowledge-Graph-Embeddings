@@ -4,7 +4,7 @@ import traceback
 from sklearn.model_selection import ParameterGrid
 
 datasets = ['FB15k-237', 'WN18RR', 'YAGO3-10', 'FB15k', 'WN18']
-models = ['ConExNeg'] # ConEx
+models = ['ConEx','ConExNeg']
 for kg_root in datasets:
     for model_name in models:
         data_dir = 'KGs/' + kg_root + '/'

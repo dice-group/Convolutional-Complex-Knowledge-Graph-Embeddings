@@ -172,6 +172,9 @@ class ConEx(torch.nn.Module):
         return entity_emb, rel_emb
 
 class ConExNeg(torch.nn.Module):
+    """
+    Variant of ConEx for ablation study.
+    """
     def __init__(self, params=None):
         super().__init__()
         self.name = 'ConExNeg'
