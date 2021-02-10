@@ -172,13 +172,8 @@ class ConEx(torch.nn.Module):
         return entity_emb, rel_emb
 
 class ConExNeg(torch.nn.Module):
-    """ Convolutional Complex Knowledge Graph Embeddings
-
-    Negative sign added into the last two operation in the Hermitian product.
-    """
-
     def __init__(self, params=None):
-        super(ConExNeg, self).__init__()
+        super().__init__()
         self.name = 'ConExNeg'
         self.loss = torch.nn.BCELoss()
         self.param = params

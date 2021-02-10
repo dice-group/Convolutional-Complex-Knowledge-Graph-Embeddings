@@ -182,7 +182,12 @@ class Reproduce:
         model = self.load_model(model_path=model_path, model_name=model_name)
         print('Evaluate:', self.model)
         print('Number of free parameters: ', sum([p.numel() for p in model.parameters()]))
-
+        entity_emb, emb_rel = model.get_embeddings()
+        # pd.DataFrame(index=self.dataset.entities, data=entity_emb.numpy()).to_csv(TypeError: can't convert CUDA tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+        pd.DataFrame(index=self.dataset.entities, data=entity_emb.numpy()).to_csv(
+            '{0}/{1}_entity_embeddings.csv'.format(model_path, model.name))
+        pd.DataFrame(index=self.dataset.relations, data=emb_rel.numpy()).to_csv(
+            '{0}/{1}_relation_embeddings.csv'.format(model_path, model.name))
         self.entity_idxs = {self.dataset.entities[i]: i for i in range(len(self.dataset.entities))}
         self.relation_idxs = {self.dataset.relations[i]: i for i in range(len(self.dataset.relations))}
         self.batch_size = self.kwargs['batch_size']

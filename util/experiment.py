@@ -7,11 +7,14 @@ from torch.optim.lr_scheduler import ExponentialLR
 from collections import defaultdict
 from torch.utils.data import DataLoader
 import pandas as pd
+import matplotlib.pyplot as plt
 
 # Fixing the random sees.
 seed = 1
 np.random.seed(seed)
 torch.manual_seed(seed)
+
+
 
 
 class Experiment:
@@ -163,6 +166,7 @@ class Experiment:
             results = self.evaluate_one_to_n(model, self.dataset.test_data,
                                              'Standard Link Prediction evaluation on Testing Data')
             with open(self.storage_path + '/results.json', 'w') as file_descriptor:
+                num_param = sum([p.numel() for p in model.parameters()])
                 results['Number_param'] = num_param
                 results.update(self.kwargs)
                 json.dump(results, file_descriptor)
@@ -180,6 +184,9 @@ class Experiment:
         self.logger.info("{0} starts training".format(model.name))
         num_param = sum([p.numel() for p in model.parameters()])
         self.logger.info("'Number of free parameters: {0}".format(num_param))
+        # Store the setting.
+        with open(self.storage_path + '/settings.json', 'w') as file_descriptor:
+            json.dump(self.kwargs, file_descriptor)
 
         if self.kwargs['scoring_technique'] == 'KvsAll':
             model = self.k_vs_all_training_schema(model)
@@ -188,10 +195,6 @@ class Experiment:
         # We may implement the negative sampling technique.
         else:
             raise ValueError
-
-        # Store the setting.
-        with open(self.storage_path + '/settings.json', 'w') as file_descriptor:
-            json.dump(self.kwargs, file_descriptor)
 
         # Save the trained model.
         torch.save(model.state_dict(), self.storage_path + '/model.pt')
@@ -218,6 +221,8 @@ class Experiment:
         model = None
         if self.model == 'ConEx':
             model = ConEx(self.kwargs)
+        elif self.model == 'ConExNeg':
+            model = ConExNeg(self.kwargs)
         elif self.model == 'Distmult':
             model = Distmult(self.kwargs)
         elif self.model == 'Tucker':
@@ -258,14 +263,13 @@ class Experiment:
                 if self.label_smoothing:
                     targets = ((1.0 - self.label_smoothing) * targets) + (1.0 / targets.size(1))
 
-                    self.optimizer.zero_grad()
-                    loss = model.forward_head_and_loss(e1_idx, r_idx, targets)
-                    loss_of_epoch += loss.item()
-                    loss.backward()
-                    self.optimizer.step()
+                self.optimizer.zero_grad()
+                loss = model.forward_head_and_loss(e1_idx, r_idx, targets)
+                loss_of_epoch += loss.item()
+                loss.backward()
+                self.optimizer.step()
             if self.decay_rate:
                 self.scheduler.step()
-
             losses.append(loss_of_epoch)
         self.logger.info('Loss at {0}.th epoch:{1}'.format(it, loss_of_epoch))
         np.savetxt(fname=self.storage_path + "/loss_per_epoch.csv", X=np.array(losses), delimiter=",")
@@ -329,3 +333,31 @@ class Experiment:
         np.savetxt(self.storage_path + "/loss_per_epoch.csv", losses, delimiter=",")
         model.eval()
         return model
+
+class Analyser:
+    def __init__(self):
+        self.train_loss = None
+
+    def apply(self, exp):
+        from sklearn.decomposition import PCA
+        self.train_loss = np.loadtxt(fname=exp.storage_path + "/loss_per_epoch.csv", delimiter=",")
+        plt.plot(self.train_loss)
+        plt.show()
+
+        entity_emb = pd.read_csv(exp.storage_path + "/{0}_entity_embeddings.csv".format(exp.model),
+                                 index_col=0).to_numpy()
+        rel_emb = pd.read_csv(exp.storage_path + "/{0}_relation_embeddings.csv".format(exp.model),
+                              index_col=0).to_numpy()
+
+        low_X = PCA(n_components=2).fit_transform(entity_emb)
+        plt.scatter(low_X[:, 0], low_X[:, 1])
+        plt.title('Entity emb')
+
+        plt.show()
+
+        low_X = PCA(n_components=2).fit_transform(rel_emb)
+        plt.scatter(low_X[:, 0], low_X[:, 1])
+        plt.title('Relation emb')
+        plt.show()
+
+        exit(1)
