@@ -109,3 +109,5 @@ We based our implementation on the open source implementation of [TuckER](https:
   year={2021},
 }
 ```
+
+For any further questions, please contact:  ```caglar.demir@upb.de```
