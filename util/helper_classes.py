@@ -1,7 +1,7 @@
 import json
 from util.data import Data
 from util.helper_funcs import *
-from models.complex_models import Complex, ConEx
+from models.complex_models import Complex, ConEx, ConExNeg
 from models.real_models import Distmult, Tucker
 from torch.optim.lr_scheduler import ExponentialLR
 from collections import defaultdict
@@ -215,6 +215,8 @@ class Reproduce:
         model = None
         if self.model == 'ConEx':
             model = ConEx(self.kwargs)
+        elif self.model == 'ConExNeg':
+            model = ConExNeg(self.kwargs)
         elif self.model == 'Tucker':
             model = Tucker(self.kwargs)
         elif self.model == 'Distmult':

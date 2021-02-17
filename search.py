@@ -4,7 +4,7 @@ import traceback
 from sklearn.model_selection import ParameterGrid
 
 datasets = ['FB15k-237', 'WN18RR', 'YAGO3-10', 'FB15k', 'WN18']
-models = ['ConEx','ConExNeg']
+models = ['ConExSum', 'ConExNeg', 'ConExSum']  # variants of ConEx for ablation study.
 for kg_root in datasets:
     for model_name in models:
         data_dir = 'KGs/' + kg_root + '/'
@@ -25,6 +25,12 @@ for kg_root in datasets:
                            'feature_map_dropout': [.4],
                            'num_of_output_channels': [16], 'kernel_size': [3]})
         elif model_name in ['ConExNeg']:
+            config.update({'embedding_dim': [200],
+                           'input_dropout': [.3],
+                           'hidden_dropout': [.3],
+                           'feature_map_dropout': [.4],
+                           'num_of_output_channels': [16], 'kernel_size': [3]})
+        elif model_name in ['ConExSum']:
             config.update({'embedding_dim': [200],
                            'input_dropout': [.3],
                            'hidden_dropout': [.3],

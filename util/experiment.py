@@ -15,8 +15,6 @@ np.random.seed(seed)
 torch.manual_seed(seed)
 
 
-
-
 class Experiment:
     """
     Experiment class for training and evaluation
@@ -103,7 +101,7 @@ class Experiment:
                 r_idx = r_idx.cuda()
                 e2_idx = e2_idx.cuda()
             predictions = model.forward_head_batch(e1_idx=e1_idx, rel_idx=r_idx)
-            #total_test_loss += model.loss(predictions, _).cpu().detach().numpy()  # store also test error.
+            # total_test_loss += model.loss(predictions, _).cpu().detach().numpy()  # store also test error.
             for j in range(data_batch.shape[0]):
                 filt = er_vocab[(data_batch[j][0], data_batch[j][1])]
                 target_value = predictions[j, e2_idx[j]].item()
@@ -131,10 +129,10 @@ class Experiment:
         self.logger.info(f'Hits @1: {hit_1}')
         self.logger.info(f'Mean rank: {mean_rank}')
         self.logger.info(f'Mean reciprocal rank: {mean_reciprocal_rank}')
-        #self.logger.info(f'Total Test Loss: {total_test_loss}')
+        # self.logger.info(f'Total Test Loss: {total_test_loss}')
 
         results = {'H@1': hit_1, 'H@3': hit_3, 'H@10': hit_10,
-                   'MR': mean_rank, 'MRR': mean_reciprocal_rank}#, 'TestLoss': total_test_loss}
+                   'MR': mean_rank, 'MRR': mean_reciprocal_rank}  # , 'TestLoss': total_test_loss}
 
         return results
 
@@ -222,6 +220,8 @@ class Experiment:
             model = ConEx(self.kwargs)
         elif self.model == 'ConExNeg':
             model = ConExNeg(self.kwargs)
+        elif self.model == 'ConExSum':
+            model = ConExSum(self.kwargs)
         elif self.model == 'Distmult':
             model = Distmult(self.kwargs)
         elif self.model == 'Tucker':
@@ -332,6 +332,7 @@ class Experiment:
         np.savetxt(self.storage_path + "/loss_per_epoch.csv", losses, delimiter=",")
         model.eval()
         return model
+
 
 class Analyser:
     def __init__(self):
