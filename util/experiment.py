@@ -9,10 +9,10 @@ from torch.utils.data import DataLoader
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# Fixing the random sees.
-seed = 1
-np.random.seed(seed)
-torch.manual_seed(seed)
+# Fixing the random seeds.
+# seed = 1
+# np.random.seed(seed)
+# torch.manual_seed(seed)
 
 
 class Experiment:
@@ -32,6 +32,7 @@ class Experiment:
         self.batch_size = parameters['batch_size']
         self.decay_rate = parameters['decay_rate']
         self.label_smoothing = parameters['label_smoothing']
+        self.optim = parameters['optim']
         self.cuda = torch.cuda.is_available()
         self.num_of_workers = parameters['num_workers']
         self.optimizer = None
@@ -174,7 +175,13 @@ class Experiment:
             model.cuda()
 
         model.init()
-        self.optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate)
+        if self.optim == 'Adam':
+            self.optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate)
+        elif self.optim == 'RMSprop':
+            self.optimizer = torch.optim.RMSprop(model.parameters(), lr=self.learning_rate)
+        else:
+            print(f'Please provide valid name for optimizer. Currently => {self.optim}')
+            raise ValueError
         if self.decay_rate:
             self.scheduler = ExponentialLR(self.optimizer, self.decay_rate)
 
@@ -231,7 +238,6 @@ class Experiment:
         else:
             print(self.model, ' is not valid name')
             raise ValueError
-
         self.train(model)
         self.eval(model)
 

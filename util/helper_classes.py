@@ -11,9 +11,9 @@ import numpy as np
 import torch
 
 # CUDA for PyTorch
-seed = 1
-np.random.seed(seed)
-torch.manual_seed(seed)
+# seed = 1
+# np.random.seed(seed)
+# torch.manual_seed(seed)
 
 
 class HeadAndRelationBatchLoader(torch.utils.data.Dataset):
