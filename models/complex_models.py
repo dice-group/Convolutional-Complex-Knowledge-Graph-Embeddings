@@ -145,7 +145,14 @@ class ConEx(torch.nn.Module):
         emb_head_i = self.input_dp_ent_i(emb_head_i)
         emb_rel_real = self.input_dp_rel_real(emb_rel_real)
         emb_rel_i = self.input_dp_rel_i(emb_rel_i)
-
+        """
+        # Remove convolution from the score calculation.
+        real_real_real = torch.mm(emb_head_real * emb_rel_real, self.emb_ent_real.weight.transpose(1, 0))
+        real_imag_imag = torch.mm(emb_head_real * emb_rel_i, self.emb_ent_i.weight.transpose(1, 0))
+        imag_real_imag = torch.mm(emb_head_i * emb_rel_real, self.emb_ent_i.weight.transpose(1, 0))
+        imag_imag_real = torch.mm(emb_head_i * emb_rel_i, self.emb_ent_real.weight.transpose(1, 0))
+        score = real_real_real + real_imag_imag + imag_real_imag - imag_imag_real
+        """
         # (4)
         # (4.1) Hadamard product of (2) and (1).
         # (4.2) Hermitian product of (4.1) and all entities.
@@ -154,7 +161,6 @@ class ConEx(torch.nn.Module):
         imag_real_imag = torch.mm(b * emb_head_i * emb_rel_real, self.emb_ent_i.weight.transpose(1, 0))
         imag_imag_real = torch.mm(b * emb_head_i * emb_rel_i, self.emb_ent_real.weight.transpose(1, 0))
         score = real_real_real + real_imag_imag + imag_real_imag - imag_imag_real
-
         return torch.sigmoid(score)
 
     def forward_head_and_loss(self, e1_idx, rel_idx, targets):
