@@ -1,7 +1,7 @@
 import json
 from util.data import Data
 from util.helper_funcs import *
-from models.complex_models import Complex, ConEx, ConExNeg
+from models.complex_models import Complex, ConEx
 from models.real_models import Distmult, Tucker
 from torch.optim.lr_scheduler import ExponentialLR
 from collections import defaultdict
@@ -10,10 +10,11 @@ import pandas as pd
 import numpy as np
 import torch
 
-# CUDA for PyTorch
-# seed = 1
-# np.random.seed(seed)
-# torch.manual_seed(seed)
+# Seeds for random number generators.
+# Disable them if you wish to observe the impact of random init. of params.
+seed = 1
+np.random.seed(seed)
+torch.manual_seed(seed)
 
 
 class HeadAndRelationBatchLoader(torch.utils.data.Dataset):
