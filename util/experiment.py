@@ -7,7 +7,6 @@ from torch.optim.lr_scheduler import ExponentialLR
 from collections import defaultdict
 from torch.utils.data import DataLoader
 import pandas as pd
-import matplotlib.pyplot as plt
 
 # Fixing the random seeds.
 # seed = 1
@@ -102,7 +101,6 @@ class Experiment:
                 r_idx = r_idx.cuda()
                 e2_idx = e2_idx.cuda()
             predictions = model.forward_head_batch(e1_idx=e1_idx, rel_idx=r_idx)
-            # total_test_loss += model.loss(predictions, _).cpu().detach().numpy()  # store also test error.
             for j in range(data_batch.shape[0]):
                 filt = er_vocab[(data_batch[j][0], data_batch[j][1])]
                 target_value = predictions[j, e2_idx[j]].item()
@@ -130,31 +128,11 @@ class Experiment:
         self.logger.info(f'Hits @1: {hit_1}')
         self.logger.info(f'Mean rank: {mean_rank}')
         self.logger.info(f'Mean reciprocal rank: {mean_reciprocal_rank}')
-        # self.logger.info(f'Total Test Loss: {total_test_loss}')
 
         results = {'H@1': hit_1, 'H@3': hit_3, 'H@10': hit_10,
-                   'MR': mean_rank, 'MRR': mean_reciprocal_rank}  # , 'TestLoss': total_test_loss}
+                   'MR': mean_rank, 'MRR': mean_reciprocal_rank}
 
         return results
-
-    def __describe_exp(self):
-        self.logger.info("Info pertaining to dataset:{0}".format(self.dataset.info))
-        self.logger.info("Number of triples in training data:{0}".format(len(self.dataset.train_data)))
-        self.logger.info("Number of triples in validation data:{0}".format(len(self.dataset.valid_data)))
-        self.logger.info("Number of triples in testing data:{0}".format(len(self.dataset.test_data)))
-        self.logger.info("Number of entities:{0}".format(len(self.entity_idxs)))
-        self.logger.info("Number of relations:{0}".format(len(self.relation_idxs)))
-        self.logger.info("HyperParameter Settings:{0}".format(self.kwargs))
-
-        if self.kwargs['norm_flag']:
-            try:
-                assert self.kwargs['input_dropout'] == 0.0
-                assert self.kwargs['hidden_dropout'] == 0.0
-            except AssertionError:
-                self.logger.info('No use of dropout allowed if unit norm used.')
-                self.logger.info('Dropouts will be set to .0')
-                self.kwargs['input_dropout'] = 0
-                self.kwargs['hidden_dropout'] = 0
 
     def eval(self, model):
         """
@@ -194,8 +172,6 @@ class Experiment:
 
         if self.kwargs['scoring_technique'] == 'KvsAll':
             model = self.k_vs_all_training_schema(model)
-        elif self.kwargs['scoring_technique'] == 'AllvsAll':
-            raise NotImplementedError('Implementation of AllvsAll raises an exception if cuda used.')
         # We may implement the negative sampling technique.
         else:
             raise ValueError
@@ -225,10 +201,6 @@ class Experiment:
         model = None
         if self.model == 'ConEx':
             model = ConEx(self.kwargs)
-        elif self.model == 'ConExNeg':
-            model = ConExNeg(self.kwargs)
-        elif self.model == 'ConExSum':
-            model = ConExSum(self.kwargs)
         elif self.model == 'Distmult':
             model = Distmult(self.kwargs)
         elif self.model == 'Tucker':
@@ -280,90 +252,3 @@ class Experiment:
         np.savetxt(fname=self.storage_path + "/loss_per_epoch.csv", X=np.array(losses), delimiter=",")
         model.eval()
         return model
-
-    def all_vs_all_training_schema(self, model):
-        # We investigated all vs all training schema inspired by 1vsN/ KvsAll. However we did not include it into
-        # our experiments.
-        raise NotImplementedError
-        self.logger.info('all_vs_all_training_schema starts')
-
-        train_data_idxs = self.get_data_idxs(self.dataset.train_data)
-        losses = []
-
-        loss_of_epoch = 0
-        it = 0
-        head_to_relation_batch = DataLoader(
-            HeadAndRelationBatchLoader(er_vocab=self.get_er_vocab(train_data_idxs), num_e=len(self.dataset.entities)),
-            batch_size=self.batch_size, num_workers=self.num_of_workers, shuffle=True)
-        relation_to_tail_batch = DataLoader(
-            RelationAndTailBatchLoader(re_vocab=self.get_re_vocab(train_data_idxs), num_e=len(self.dataset.entities)),
-            batch_size=self.batch_size, num_workers=self.num_of_workers, shuffle=True)
-
-        for it in range(1, self.num_of_epochs + 1):
-            loss_of_epoch = 0.0
-            # given a triple (e_i,r_k,e_j), we generate two sets of corrupted triples
-            # 1) (e_i,r_k,x) where x \in Entities AND (e_i,r_k,x) \not \in KG
-            # 2) (x,r_k,e_j) where x \in Entities AND (x,r_k,e_j) \not \in KG.
-            for (head_batch, tail_batch) in zip(head_to_relation_batch, relation_to_tail_batch):  # mini batches
-                e1_idx, r_idx, targets = head_batch
-                r_idx_2, e2_idx, targets_2 = tail_batch
-
-                if self.cuda:
-                    targets = targets.cuda()
-                    r_idx = r_idx.cuda()
-                    e1_idx = e1_idx.cuda()
-                    targets_2 = targets_2.cuda()
-                    r_idx_2 = r_idx_2.cuda()
-                    e2_idx = e2_idx.cuda()
-
-                if self.label_smoothing:
-                    targets = ((1.0 - self.label_smoothing) * targets) + (1.0 / targets.size(1))
-                    targets_2 = ((1.0 - self.label_smoothing) * targets_2) + (1.0 / targets_2.size(1))
-
-                    self.optimizer.zero_grad()
-                    head_loss = model.forward_head_and_loss(e1_idx, r_idx, targets)
-                    loss_of_epoch += head_loss.item()
-                    tail_loss = model.forward_tail_and_loss(r_idx_2, e2_idx, targets_2)
-                    loss_of_epoch += tail_loss.item()
-                    loss = head_loss + tail_loss
-                    loss.backward()
-                    self.optimizer.step()
-
-            if self.decay_rate:
-                self.scheduler.step()
-
-            losses.append(loss_of_epoch)
-        self.logger.info('Loss at {0}.th epoch:{1}'.format(it, loss_of_epoch))
-        losses = np.array(losses)
-        np.savetxt(self.storage_path + "/loss_per_epoch.csv", losses, delimiter=",")
-        model.eval()
-        return model
-
-
-class Analyser:
-    def __init__(self):
-        self.train_loss = None
-
-    def apply(self, exp):
-        from sklearn.decomposition import PCA
-        self.train_loss = np.loadtxt(fname=exp.storage_path + "/loss_per_epoch.csv", delimiter=",")
-        plt.plot(self.train_loss)
-        plt.show()
-
-        entity_emb = pd.read_csv(exp.storage_path + "/{0}_entity_embeddings.csv".format(exp.model),
-                                 index_col=0).to_numpy()
-        rel_emb = pd.read_csv(exp.storage_path + "/{0}_relation_embeddings.csv".format(exp.model),
-                              index_col=0).to_numpy()
-
-        low_X = PCA(n_components=2).fit_transform(entity_emb)
-        plt.scatter(low_X[:, 0], low_X[:, 1])
-        plt.title('Entity emb')
-
-        plt.show()
-
-        low_X = PCA(n_components=2).fit_transform(rel_emb)
-        plt.scatter(low_X[:, 0], low_X[:, 1])
-        plt.title('Relation emb')
-        plt.show()
-
-        exit(1)

@@ -16,7 +16,6 @@ seed = 1
 np.random.seed(seed)
 torch.manual_seed(seed)
 
-
 class HeadAndRelationBatchLoader(torch.utils.data.Dataset):
     def __init__(self, er_vocab, num_e):
         self.num_e = num_e
@@ -33,38 +32,6 @@ class HeadAndRelationBatchLoader(torch.utils.data.Dataset):
         y_vec = torch.zeros(self.num_e)
         y_vec[self.tail_idx[idx]] = 1  # given head and rel, set 1's for all tails.
         return self.head_idx[idx], self.rel_idx[idx], y_vec
-
-
-class RelationAndTailBatchLoader(torch.utils.data.Dataset):
-    """
-    DO NOT USE YET.
-
-    The idea of implementing this class as follows:
-    1. given (s,p,o) regardless of p is inverse or not, we perform KvsAll/1vsN on (s,p,?) during training.
-    2. We were wondering the possible impact of performing KvsAll on (?,p,o).
-    3. Note that we do not distinguish whether p is inverse or not.
-    4. Our initial experiments on UMLS and KINSHIP show that training with (s,p,?) and (?,p,o) yield better results than training only
-    on (s,p,?). However, this superior performance may stem from the fact that the former case updates weights twice more.
-    5. We aimed to test this change on larger datasets but we obtain ****CUDA ASSERTION EXCEPTION****.
-    6. We have not investigate yet the reason causing such exception.
-    """
-
-    def __init__(self, re_vocab, num_e):
-        self.num_e = num_e
-        rel_head_idx = torch.Tensor(list(re_vocab.keys())).long()
-        self.rel_idx = rel_head_idx[:, 0]
-        self.tail_idx = rel_head_idx[:, 1]
-        self.head_idx = list(re_vocab.values())
-        assert len(self.head_idx) == len(self.rel_idx) == len(self.tail_idx)
-
-    def __len__(self):
-        return len(self.tail_idx)
-
-    def __getitem__(self, idx):
-        y_vec = torch.zeros(self.num_e)
-        y_vec[self.head_idx[idx]] = 1  # given head and rel, set 1's for all tails.
-        return self.rel_idx[idx], self.tail_idx[idx], y_vec
-
 
 class Reproduce:
     def __init__(self):
@@ -183,12 +150,10 @@ class Reproduce:
         model = self.load_model(model_path=model_path, model_name=model_name)
         print('Evaluate:', self.model)
         print('Number of free parameters: ', sum([p.numel() for p in model.parameters()]))
-        entity_emb, emb_rel = model.get_embeddings()
-        # pd.DataFrame(index=self.dataset.entities, data=entity_emb.numpy()).to_csv(TypeError: can't convert CUDA tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
-        pd.DataFrame(index=self.dataset.entities, data=entity_emb.numpy()).to_csv(
-            '{0}/{1}_entity_embeddings.csv'.format(model_path, model.name))
-        pd.DataFrame(index=self.dataset.relations, data=emb_rel.numpy()).to_csv(
-            '{0}/{1}_relation_embeddings.csv'.format(model_path, model.name))
+        # To save if you wish.
+        # entity_emb, emb_rel = model.get_embeddings()
+        # pd.DataFrame(index=self.dataset.entities, data=entity_emb.numpy()).to_csv('{0}/{1}_entity_embeddings.csv'.format(model_path, model.name))
+        # pd.DataFrame(index=self.dataset.relations, data=emb_rel.numpy()).to_csv('{0}/{1}_relation_embeddings.csv'.format(model_path, model.name))
         self.entity_idxs = {self.dataset.entities[i]: i for i in range(len(self.dataset.entities))}
         self.relation_idxs = {self.dataset.relations[i]: i for i in range(len(self.dataset.relations))}
         self.batch_size = self.kwargs['batch_size']
@@ -216,8 +181,6 @@ class Reproduce:
         model = None
         if self.model == 'ConEx':
             model = ConEx(self.kwargs)
-        elif self.model == 'ConExNeg':
-            model = ConExNeg(self.kwargs)
         elif self.model == 'Tucker':
             model = Tucker(self.kwargs)
         elif self.model == 'Distmult':
@@ -229,14 +192,13 @@ class Reproduce:
             raise ValueError
 
         m = torch.load(model_path + '/model.pt', torch.device('cpu'))
-
         model.load_state_dict(m)
         for parameter in model.parameters():
             parameter.requires_grad = False
         model.eval()
+
         if self.cuda:
             model.cuda()
-
         return model
 
     def reproduce_ensemble(self, model, data_path, per_rel_flag_=False, tail_pred_constraint=False,
