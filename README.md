@@ -24,7 +24,7 @@ The code is compatible with Python 3.6.4.
 Please follow the next steps to reproduce all reported results.
 - Unzip the datasets: ```unzip KGs.zip```
 - Create a folder for pretrained models: ```mkdir PretrainedModels```
-- Download pretrained models via [hobbitdata](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/) into ```mkdir PretrainedModels```.
+- Download pretrained models via [hobbitdata](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/) into ```PretrainedModels```.
 - ```python reproduce_lp.py``` reproduces link prediction results on the FB15K-237, FB15K, WN18, WN18RR and YAGO3-10 benchmark datasets.
 - ```python reproduce_baselines.py``` reproduces link prediction results of DistMult, ComplEx and TuckER on the FB15K-237, WN18RR and YAGO3-10 benchmark datasets.
 - ```settings.json``` files store the hyperparameter setting for each model.
