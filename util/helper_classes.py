@@ -10,6 +10,9 @@ import pandas as pd
 import numpy as np
 import torch
 
+import warnings
+warnings.filterwarnings("ignore")
+
 # Seeds for random number generators.
 # Disable them if you wish to observe the impact of random init. of params.
 seed = 1
@@ -116,11 +119,16 @@ class Reproduce:
                     if rank <= hits_level:
                         hits[hits_level].append(1.0)
 
-        print('Hits @10: {0}'.format(sum(hits[9]) / (float(len(data)))))
-        print('Hits @3: {0}'.format(sum(hits[2]) / (float(len(data)))))
-        print('Hits @1: {0}'.format(sum(hits[0]) / (float(len(data)))))
+        print('Hits@10: {0}'.format(sum(hits[9]) / (float(len(data)))))
+        print('Hits@3: {0}'.format(sum(hits[2]) / (float(len(data)))))
+        print('Hits@1: {0}'.format(sum(hits[0]) / (float(len(data)))))
         print('Mean rank: {0}'.format(np.mean(ranks)))
         print('MRR: {0}'.format(np.mean(1. / np.array(ranks))))
+
+        report = {'Hits@10': sum(hits[9]) / (float(len(data))),
+                  'Hits@3': sum(hits[2]) / (float(len(data))),
+                  'Hits@1': sum(hits[0]) / (float(len(data))),
+                  'MRR': np.mean(1. / np.array(ranks))}
         print('###############################')
         if per_rel_flag_:
             for k, v in rank_per_relation.items():
@@ -140,6 +148,8 @@ class Reproduce:
                 sum_reciprocal_ranks = np.sum(reciprocal_head_entity_rankings + reciprocal_tail_entity_rankings)
                 print('MRR:{0}: {1}'.format(k, sum_reciprocal_ranks / ((float(len(v))) * 2)))
 
+        return report
+
     def reproduce(self, model_path, data_path, model_name, per_rel_flag_=False, tail_pred_constraint=False,
                   out_of_vocab_flag=False):
         with open(model_path + '/settings.json', 'r') as file_descriptor:
@@ -151,14 +161,14 @@ class Reproduce:
         print('Evaluate:', self.model)
         print('Number of free parameters: ', sum([p.numel() for p in model.parameters()]))
         # To save if you wish.
-        # entity_emb, emb_rel = model.get_embeddings()
-        # pd.DataFrame(index=self.dataset.entities, data=entity_emb.numpy()).to_csv('{0}/{1}_entity_embeddings.csv'.format(model_path, model.name))
-        # pd.DataFrame(index=self.dataset.relations, data=emb_rel.numpy()).to_csv('{0}/{1}_relation_embeddings.csv'.format(model_path, model.name))
+        #entity_emb, emb_rel = model.get_embeddings()
+        #pd.DataFrame(index=self.dataset.entities, data=entity_emb.numpy()).to_csv('{0}/{1}_entity_embeddings.csv'.format(model_path, model.name))
+        #pd.DataFrame(index=self.dataset.relations, data=emb_rel.numpy()).to_csv('{0}/{1}_relation_embeddings.csv'.format(model_path, model.name))
         self.entity_idxs = {self.dataset.entities[i]: i for i in range(len(self.dataset.entities))}
         self.relation_idxs = {self.dataset.relations[i]: i for i in range(len(self.dataset.relations))}
         self.batch_size = self.kwargs['batch_size']
         print('Link Prediction Results on Testing')
-        self.evaluate_link_prediction(model, self.dataset.test_data, per_rel_flag_)
+        return self.evaluate_link_prediction(model, self.dataset.test_data, per_rel_flag_)
 
     def get_embeddings(self, model_path, data_path, model_name, per_rel_flag_=False, tail_pred_constraint=False,
                        out_of_vocab_flag=False):
@@ -196,7 +206,6 @@ class Reproduce:
         for parameter in model.parameters():
             parameter.requires_grad = False
         model.eval()
-
         if self.cuda:
             model.cuda()
         return model

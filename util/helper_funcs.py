@@ -2,6 +2,14 @@ import datetime
 import logging
 import os
 import time
+import numpy as np
+
+
+def compute_confidence_interval(results):
+    for metric, values in results.items():
+        margin_of_error = 1.96 * (values.std() / np.sqrt(len(values)))
+        print(f'Confidence interval of {metric} => {values.mean()} +- {margin_of_error}')
+
 
 def create_experiment_folder(folder_name='Experiments'):
     directory = os.getcwd() + '/' + folder_name + '/'
@@ -34,6 +42,7 @@ def create_logger(*, name, p):
 
     return logger
 
+
 def get_experiments(path: str):
     """
     :param path: str represents path of a KB or path of folder containg KBs
@@ -44,7 +53,7 @@ def get_experiments(path: str):
     must_contain = {'info.log', 'model.pt', 'settings.json'}
 
     for root, dir, files in os.walk(path):
-        files=set(files)
+        files = set(files)
         if files.issuperset(must_contain):
             valid_exp.append(root)
     if len(valid_exp) == 0:
@@ -53,6 +62,7 @@ def get_experiments(path: str):
         print('Execution is terminated.')
         exit(1)
     return valid_exp
+
 
 def performance_debugger(func_name):
     def function_name_decoratir(func):
