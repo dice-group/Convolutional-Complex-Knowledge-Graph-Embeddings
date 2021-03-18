@@ -1,0 +1,4 @@
+## Visualisation of Embeddings
+A 2D PCA projection of relation embeddings on the FB15K-237 dataset. The Figure shows that inverse relations cluster in distant regions.
+Note that we applied the standard data augmentation technique.
+To generate inverse relations, relations are renamed by adding suffix of inverse as done in (https://arxiv.org/abs/1901.09590).
