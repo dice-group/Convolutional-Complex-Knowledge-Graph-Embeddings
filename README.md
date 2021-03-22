@@ -39,11 +39,11 @@ In the below, we provide a brief overview of the link prediction results.
 |---------|------:|--------:|-------:|--------:|
 | [DistMult](https://arxiv.org/pdf/1707.01476.pdf) | .340     | .540     |  .380    |  .240    |
 | [ComplEx](https://arxiv.org/pdf/1707.01476.pdf)  | .360     | .550     |  .400    |  .260    |
-| [ConvE](https://arxiv.org/pdf/1707.01476.pdf)    | .400     | .620     |  .490    |  .350    |
-| [HypER](https://arxiv.org/pdf/1808.07018.pdf)    | .530     | .680     |  .580    |  .460    |
-| [RotatE](https://arxiv.org/pdf/1902.10197.pdf)   | .500     | .670     |  .550    |  .400    |
-| DistMult                                         | .550     | .692     |  .600    |  .476    |
-| ComplEx                                          | .551     | .694     |  .603    |  .477    | 
+| [ConvE](https://arxiv.org/pdf/1707.01476.pdf)    | .440     | .620     |  .490    |  .350    |
+| [HypER](https://arxiv.org/pdf/1808.07018.pdf)    | .530     | .678     |  .580    |  .455    |
+| [RotatE](https://arxiv.org/pdf/1902.10197.pdf)   | .495     | .670     |  .550    |  .400    |
+| DistMult                                         | .543     | .683     |  .590    |  .466    |
+| ComplEx                                          | .547     | .690     |  .594    |  .468    | 
 | TuckER                                           | .427     | .609     |  .476    |  .331    |
 | ConEx                                            |***.553***|***.696***|***.601***|***.474***| 
 
@@ -54,14 +54,14 @@ In the below, we provide a brief overview of the link prediction results.
 | [ComplEx](https://arxiv.org/pdf/1707.01476.pdf)  | .247     | .428     |  .275    |  .158    |
 | [ConvE](https://arxiv.org/pdf/1707.01476.pdf)    | .335     | .501     |  .356    |  .237    |
 | [DistMult](https://github.com/uma-pi1/kge-iclr20)| .343     | .531     |  .378    |  .250    |
-| [ComplEx](https://github.com/uma-pi1/kge-iclr20) | .438     | .536     |  .384    |  .253    |
+| [ComplEx](https://github.com/uma-pi1/kge-iclr20) | .348     | .536     |  .384    |  .253    |
 | [ConvE](https://github.com/uma-pi1/kge-iclr20)   | .339     | .521     |  .369    |  .248    |
 | [RotatE](https://arxiv.org/pdf/1902.10197.pdf)   | .338     | .533     |  .375    |  .241    |
 | [HypER](https://arxiv.org/pdf/1808.07018.pdf)    | .341     | .520     |  .376    |  .252    |
 | DistMult                                         | .353     | .539     |  .390    |  .260    |
-| ComplEx                                          | .332     | .509     |  .366    |  .244    | 
+| ComplEx                                          | .332     | .509     |  .366    |  .244    |
 | TuckER                                           | .363     | .553     |  .400    |  .268    |
-| ConEx                                            | .366     | .555     | .403     |  .271    | 
+| ConEx                                            | .366     | .555     |  .403     |  .271    | 
 | Ensemble of ConEx                                |***.376***|***.570***|***.415***|***.279***| 
 
 
