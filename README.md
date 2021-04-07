@@ -20,6 +20,18 @@ The code is compatible with Python 3.6.4.
 + ```run_script.py``` can be used to train ConEx on a desired dataset.
 + ```grid_search.py``` can be used to rerun our experiments.
 
+## Pre-trained Models
+- [Forte embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/ConEx_Forte.zip)
+- [Hepatitis embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/ConEx_Hepatitis.zip)
+- [Lymphography embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/ConEx_Lymphography.zip)
+- [Mammographic embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/ConEx_Mammographic.zip)
+- [Animals embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/Animals.zip)
+- [YAGO3-10 embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/ConEx_Animals.zip)
+- [FB15K-237 embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/FB15K-237.zip)
+- [FB15K embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/FB15K.zip)
+- [WN18RR embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/WN18RR.zip)
+- [WN18 embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/WN18.zip)
+
 ## Reproduce link prediction results
 Please follow the next steps to reproduce all reported results.
 - Unzip the datasets: ```unzip KGs.zip```
@@ -71,11 +83,11 @@ We based our implementation on the open source implementation of [TuckER](https:
 ## How to cite
 ```
 @inproceedings{demir2021convolutional,
-               title={Convolutional Complex Knowledge Graph Embeddings},
-               author={Caglar Demir and Axel-Cyrille Ngonga Ngomo},
-               booktitle={Eighteenth Extended Semantic Web Conference - Research Track},
-               year={2021},
-               url={https://openreview.net/forum?id=6T45-4TFqaX}}
+title={Convolutional Complex Knowledge Graph Embeddings},
+author={Caglar Demir and Axel-Cyrille Ngonga Ngomo},
+booktitle={Eighteenth Extended Semantic Web Conference - Research Track},
+year={2021},
+url={https://openreview.net/forum?id=6T45-4TFqaX}}
 ```
 
 For any further questions or suggestions, please contact:  ```caglar.demir@upb.de```
