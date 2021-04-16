@@ -24,7 +24,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_name', type=str, default='ConEx')
     parser.add_argument('--num_of_epochs', type=int, default=20)
     parser.add_argument('--batch_size', type=int, default=1024)
-    parser.add_argument('--scoring_technique', type=str, default='KvsAll')
+    parser.add_argument('--scoring_technique', type=str, default='1vs1')
     parser.add_argument('--label_smoothing', type=float, default=0.1)
     parser.add_argument('--learning_rate', type=float, default=.001)
     parser.add_argument('--optim', type=str, default='RMSprop', help='Choose optimizer: Adam or RMSprop')

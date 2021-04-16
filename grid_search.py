@@ -3,8 +3,9 @@ from util.data import Data
 import traceback
 from sklearn.model_selection import ParameterGrid
 
-datasets = ['FB15k-237', 'WN18RR', 'YAGO3-10', 'FB15k', 'WN18']
-models = ['ConEx']
+datasets = ['FB15k-237']
+# datasets = ['FB15k-237', 'WN18RR', 'YAGO3-10', 'FB15k', 'WN18']
+models = ['Complex1to1']
 
 num_runs = 2
 
@@ -12,17 +13,19 @@ for kg_root in datasets:
     for model_name in models:
         data_dir = 'KGs/' + kg_root + '/'
         config = {
-            'num_of_epochs': [2000],
-            'batch_size': [1024],
+            'num_of_epochs': [2],
+            # int(len(self.dataset.train_data) / 100000)
+            'batch_size': [5442],
+            'neg_ratio': [2],
             'optim': ['Adam', 'RMSprop'],
             'learning_rate': [.001],
             'label_smoothing': [0.1],
             'decay_rate': [None],
-            'scoring_technique': ['KvsAll'],
+            'scoring_technique': ['1vs1'],
             'train_plus_valid': [False, True],
             'num_workers': [32],  # depends on the machine available.
         }
-        if model_name in ['ConEx']:
+        if model_name in ['Complex1to1']:
             config.update({'embedding_dim': [100, 200],
                            'input_dropout': [.3, .4],
                            'hidden_dropout': [0],

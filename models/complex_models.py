@@ -176,3 +176,70 @@ class ConEx(torch.nn.Module):
         entity_emb = torch.cat((self.emb_ent_real.weight.data, self.emb_ent_i.weight.data), 1)
         rel_emb = torch.cat((self.emb_rel_real.weight.data, self.emb_rel_i.weight.data), 1)
         return entity_emb, rel_emb
+
+
+
+
+class Complex1to1(torch.nn.Module):
+    def __init__(self, param):
+        super(Complex1to1, self).__init__()
+        self.name = 'Complex1to1'
+        self.param = param
+        self.embedding_dim = self.param['embedding_dim']
+        self.num_entities = self.param['num_entities']
+        self.num_relations = self.param['num_relations']
+
+        self.Er = torch.nn.Embedding(self.num_entities, self.embedding_dim, padding_idx=0)
+        self.Rr = torch.nn.Embedding(self.num_relations, self.embedding_dim, padding_idx=0)
+        self.Ei = torch.nn.Embedding(self.num_entities, self.embedding_dim, padding_idx=0)
+        self.Ri = torch.nn.Embedding(self.num_relations, self.embedding_dim, padding_idx=0)
+
+        self.input_dropout = torch.nn.Dropout(self.param['input_dropout'])
+        self.bn0 = torch.nn.BatchNorm1d(self.embedding_dim)
+        self.bn1 = torch.nn.BatchNorm1d(self.embedding_dim)
+        self.loss = torch.nn.CrossEntropyLoss()
+
+    def init(self):
+        xavier_normal_(self.Er.weight.data)
+        xavier_normal_(self.Rr.weight.data)
+        xavier_normal_(self.Ei.weight.data)
+        xavier_normal_(self.Ri.weight.data)
+
+    def forward_head_batch(self, e1_idx, rel_idx, e2_idx):
+
+        e1r = self.Er(e1_idx)
+        rr = self.Rr(rel_idx)
+        e1i = self.Ei(e1_idx)
+        ri = self.Ri(rel_idx)
+        e2r = self.Er(e2_idx)
+        e2i = self.Ei(e2_idx)
+
+        e1r = self.bn0(e1r)
+        e2r = self.bn0(e2r)
+        e1r = self.input_dropout(e1r)
+        e2r = self.input_dropout(e2r)
+        e1i = self.bn1(e1i)
+        e2i = self.bn1(e2i)
+        e1i = self.input_dropout(e1i)
+        e2i = self.input_dropout(e2i)
+
+
+        pred = torch.mm(e1r * rr * e2r, self.Er.weight.transpose(1, 0)) + \
+               torch.mm(e1r * ri * e2i, self.Ei.weight.transpose(1, 0)) + \
+               torch.mm(e1i * rr * e2i, self.Ei.weight.transpose(1, 0)) - \
+               torch.mm(e1i * ri * e2r, self.Er.weight.transpose(1, 0))
+        # print(e1r)
+        # exit(1)
+        pred = torch.sigmoid(pred)
+
+        return pred
+
+    def forward_head_and_loss(self, e1_idx, rel_idx, e2_idx, targets):
+        return self.loss(self.forward_head_batch(e1_idx=e1_idx, rel_idx=rel_idx, e2_idx=e2_idx),targets)
+
+    def get_embeddings(self):
+        entity_emb = torch.cat((self.Er.weight.data, self.Ei.weight.data), 1)
+        rel_emb = torch.cat((self.Rr.weight.data, self.Ri.weight.data), 1)
+        return entity_emb, rel_emb
+
+

@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 import pandas as pd
 import numpy as np
 import torch
-
+from itertools import repeat
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -35,6 +35,24 @@ class HeadAndRelationBatchLoader(torch.utils.data.Dataset):
         y_vec = torch.zeros(self.num_e)
         y_vec[self.tail_idx[idx]] = 1  # given head and rel, set 1's for all tails.
         return self.head_idx[idx], self.rel_idx[idx], y_vec
+
+class TriplesBatchLoader(torch.utils.data.Dataset):
+    def __init__(self, ere_vocab, num_e):
+        self.num_e = num_e
+        head_rel_idx = torch.Tensor(list(ere_vocab.keys())).long()
+        self.head_idx = head_rel_idx[:, 0]
+        self.rel_idx = head_rel_idx[:, 1]
+        self.tail_idx = head_rel_idx[:, 2]
+        self.target = list(repeat(1, len(self.rel_idx)))
+        assert len(self.head_idx) == len(self.rel_idx) == len(self.tail_idx)
+
+    def __len__(self):
+        return len(self.tail_idx)
+
+    def __getitem__(self, idx):
+        # y_vec = torch.zeros(self.num_e)
+        # y_vec[self.tail_idx[idx]] = 1  # given head and rel, set 1's for all tails.
+        return self.head_idx[idx], self.rel_idx[idx], self.tail_idx[idx], self.target[idx]
 
 class Reproduce:
     def __init__(self):
