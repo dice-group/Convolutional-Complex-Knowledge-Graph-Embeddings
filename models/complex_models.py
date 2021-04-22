@@ -61,6 +61,12 @@ class Complex(torch.nn.Module):
         rel_emb = torch.cat((self.Rr.weight.data, self.Ri.weight.data), 1)
         return entity_emb, rel_emb
 
+    def forward_triples(self, *args, **kwargs):
+        raise NotImplementedError('Negative Sampling is not implemented for Complex')
+
+    def forward_triples_and_loss(self, *args, **kwargs):
+        raise NotImplementedError('Negative Sampling is not implemented for Complex')
+
 
 class ConEx(torch.nn.Module):
     """ Convolutional Complex Knowledge Graph Embeddings"""
@@ -71,10 +77,10 @@ class ConEx(torch.nn.Module):
         self.loss = torch.nn.BCELoss()
         self.param = params
         self.embedding_dim = self.param['embedding_dim']
-        self.num_entities = params['num_entities']
-        self.num_relations = params['num_relations']
-        self.kernel_size = params['kernel_size']
-        self.num_of_output_channels = params['num_of_output_channels']
+        self.num_entities = self.param['num_entities']
+        self.num_relations = self.param['num_relations']
+        self.kernel_size = self.param['kernel_size']
+        self.num_of_output_channels = self.param['num_of_output_channels']
 
         # Embeddings.
         self.emb_ent_real = nn.Embedding(self.param['num_entities'], self.embedding_dim)  # real
@@ -88,6 +94,7 @@ class ConEx(torch.nn.Module):
         self.input_dp_ent_i = torch.nn.Dropout(self.param['input_dropout'])
         self.input_dp_rel_real = torch.nn.Dropout(self.param['input_dropout'])
         self.input_dp_rel_i = torch.nn.Dropout(self.param['input_dropout'])
+
         # Batch Normalization
         self.bn_ent_real = torch.nn.BatchNorm1d(self.embedding_dim)
         self.bn_ent_i = torch.nn.BatchNorm1d(self.embedding_dim)
@@ -176,3 +183,41 @@ class ConEx(torch.nn.Module):
         entity_emb = torch.cat((self.emb_ent_real.weight.data, self.emb_ent_i.weight.data), 1)
         rel_emb = torch.cat((self.emb_rel_real.weight.data, self.emb_rel_i.weight.data), 1)
         return entity_emb, rel_emb
+
+    def forward_triples(self, *, e1_idx, rel_idx, e2_idx):
+        # (1)
+        # (1.1) Complex embeddings of head entities and apply batch norm.
+        emb_head_real = self.emb_ent_real(e1_idx)
+        emb_head_i = self.emb_ent_i(e1_idx)
+        # (1.2) Complex embeddings of relations.
+        emb_tail_real = self.emb_ent_real(e2_idx)
+        emb_tail_i = self.emb_ent_i(e2_idx)
+
+        # (1.2) Complex embeddings of tail entities.
+        emb_rel_real = self.emb_rel_real(rel_idx)
+        emb_rel_i = self.emb_rel_i(rel_idx)
+
+        # (2) Apply convolution operation on (1).
+        C_3 = self.residual_convolution(C_1=(emb_head_real, emb_head_i),
+                                        C_2=(emb_rel_real, emb_rel_i))
+        a, b = C_3
+
+        # (3) Apply dropout out on (1).
+        emb_head_real = self.input_dp_ent_real(emb_head_real)
+        emb_head_i = self.input_dp_ent_i(emb_head_i)
+        emb_rel_real = self.input_dp_rel_real(emb_rel_real)
+        emb_rel_i = self.input_dp_rel_i(emb_rel_i)
+        # (4)
+        # (4.1) Hadamard product of (2) and (1).
+        # (4.2) Hermitian product of (4.1) and tail entities
+        # Compute multi-linear product embeddings
+        real_real_real = (a * emb_head_real * emb_rel_real * emb_tail_real).sum(dim=1)
+        real_imag_imag = (a * emb_head_real * emb_rel_i * emb_tail_i).sum(dim=1)
+        imag_real_imag = (b * emb_head_i * emb_rel_real * emb_tail_i).sum(dim=1)
+        imag_imag_real = (b * emb_head_i * emb_rel_i * emb_tail_real).sum(dim=1)
+        score = real_real_real + real_imag_imag + imag_real_imag - imag_imag_real
+        return torch.sigmoid(score)
+
+    def forward_triples_and_loss(self, e1_idx, rel_idx, e2_idx, targets):
+        scores = self.forward_triples(e1_idx=e1_idx, rel_idx=rel_idx, e2_idx=e2_idx)
+        return self.loss(scores, targets)

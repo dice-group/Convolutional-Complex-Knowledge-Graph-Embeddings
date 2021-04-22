@@ -11,6 +11,7 @@ import numpy as np
 import torch
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 # Seeds for random number generators.
@@ -18,6 +19,27 @@ warnings.filterwarnings("ignore")
 seed = 1
 np.random.seed(seed)
 torch.manual_seed(seed)
+# noinspection PyTypeChecker
+class DatasetTriple(torch.utils.data.Dataset):
+    def __init__(self, data):
+        data = torch.Tensor(data).long()
+        self.head_idx = data[:, 0]
+        self.rel_idx = data[:, 1]
+        self.tail_idx = data[:, 2]
+
+        assert self.head_idx.shape == self.rel_idx.shape == self.tail_idx.shape
+
+        self.length = len(self.head_idx)
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, idx):
+        h = self.head_idx[idx]
+        r = self.rel_idx[idx]
+        t = self.tail_idx[idx]
+        return h, r, t
+
 
 class HeadAndRelationBatchLoader(torch.utils.data.Dataset):
     def __init__(self, er_vocab, num_e):
@@ -161,9 +183,9 @@ class Reproduce:
         print('Evaluate:', self.model)
         print('Number of free parameters: ', sum([p.numel() for p in model.parameters()]))
         # To save if you wish.
-        #entity_emb, emb_rel = model.get_embeddings()
-        #pd.DataFrame(index=self.dataset.entities, data=entity_emb.numpy()).to_csv('{0}/{1}_entity_embeddings.csv'.format(model_path, model.name))
-        #pd.DataFrame(index=self.dataset.relations, data=emb_rel.numpy()).to_csv('{0}/{1}_relation_embeddings.csv'.format(model_path, model.name))
+        # entity_emb, emb_rel = model.get_embeddings()
+        # pd.DataFrame(index=self.dataset.entities, data=entity_emb.numpy()).to_csv('{0}/{1}_entity_embeddings.csv'.format(model_path, model.name))
+        # pd.DataFrame(index=self.dataset.relations, data=emb_rel.numpy()).to_csv('{0}/{1}_relation_embeddings.csv'.format(model_path, model.name))
         self.entity_idxs = {self.dataset.entities[i]: i for i in range(len(self.dataset.entities))}
         self.relation_idxs = {self.dataset.relations[i]: i for i in range(len(self.dataset.relations))}
         self.batch_size = self.kwargs['batch_size']

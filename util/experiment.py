@@ -1,12 +1,16 @@
 import json
+
+import torch
+
 from util.helper_funcs import *
-from util.helper_classes import HeadAndRelationBatchLoader
+from util.helper_classes import *
 from models.complex_models import *
 from models.real_models import *
 from torch.optim.lr_scheduler import ExponentialLR
 from collections import defaultdict
 from torch.utils.data import DataLoader
 import pandas as pd
+
 
 # Fixing the random seeds.
 # seed = 1
@@ -44,6 +48,11 @@ class Experiment:
         self.kwargs = parameters
         self.kwargs['model'] = self.model
 
+        if self.kwargs['scoring_technique'] != 'KvsAll':
+            self.neg_sample_ratio = int(self.kwargs['scoring_technique'])
+        else:
+            self.neg_sample_ratio = None
+
         self.storage_path, _ = create_experiment_folder()
         self.logger = create_logger(name=self.model + ith_logger, p=self.storage_path)
 
@@ -78,6 +87,15 @@ class Experiment:
         for idx, pair in enumerate(batch):
             targets[idx, er_vocab[pair]] = self.positive_label
         return np.array(batch), torch.FloatTensor(targets)
+
+    def describe(self):
+        self.logger.info("Info pertaining to dataset:{0}".format(self.dataset.info))
+        self.logger.info("Number of triples in training data:{0}".format(len(self.dataset.train_data)))
+        self.logger.info("Number of triples in validation data:{0}".format(len(self.dataset.valid_data)))
+        self.logger.info("Number of triples in testing data:{0}".format(len(self.dataset.test_data)))
+        self.logger.info("Number of entities:{0}".format(len(self.entity_idxs)))
+        self.logger.info("Number of relations:{0}".format(len(self.relation_idxs)))
+        self.logger.info("HyperParameter Settings:{0}".format(self.kwargs))
 
     def evaluate_one_to_n(self, model, data, log_info='Evaluate one to N.'):
         """
@@ -134,24 +152,108 @@ class Experiment:
 
         return results
 
+    def evaluate_standard(self, model, data, log_info='Evaluate one to N.'):
+        self.logger.info(log_info)
+        hits = []
+        ranks = []
+        for i in range(10):
+            hits.append([])
+
+        test_data_idxs = self.get_data_idxs(data)
+        er_vocab = self.get_er_vocab(self.get_data_idxs(self.dataset.data))
+
+        for i in range(0, len(test_data_idxs)):
+            data_point = test_data_idxs[i]
+            e1_idx = torch.tensor(data_point[0])
+            rel_idx = torch.tensor(data_point[1])
+            e2_idx = torch.tensor(data_point[2])
+
+            if self.cuda:
+                e1_idx = e1_idx.cuda()
+                rel_idx = rel_idx.cuda()
+                e2_idx = e2_idx.cuda()
+
+            all_entities = torch.arange(0, len(self.entity_idxs)).long()
+            all_entities = all_entities.reshape(len(all_entities), )
+            predictions = model.forward_triples(e1_idx=e1_idx.repeat(len(self.entity_idxs), ),
+                                                rel_idx=rel_idx.repeat(len(self.entity_idxs), ),
+                                                e2_idx=all_entities)
+
+            filt = er_vocab[(data_point[0], data_point[1])]
+            target_value = predictions[e2_idx].item()
+            predictions[filt] = -np.Inf
+            predictions[e1_idx] = -np.Inf
+            predictions[e2_idx] = target_value
+
+            sort_values, sort_idxs = torch.sort(predictions, descending=True)
+            sort_idxs = sort_idxs.cpu().numpy()
+            rank = np.where(sort_idxs == e2_idx.item())[0][0]
+            ranks.append(rank + 1)
+
+            for hits_level in range(10):
+                if rank <= hits_level:
+                    hits[hits_level].append(1.0)
+                else:
+                    hits[hits_level].append(0.0)
+
+        hit_1 = sum(hits[0]) / (float(len(data)))
+        hit_3 = sum(hits[2]) / (float(len(data)))
+        hit_10 = sum(hits[9]) / (float(len(data)))
+        mean_rank = np.mean(ranks)
+        mean_reciprocal_rank = np.mean(1. / np.array(ranks))
+
+        self.logger.info(f'Hits @10: {hit_10}')
+        self.logger.info(f'Hits @3: {hit_3}')
+        self.logger.info(f'Hits @1: {hit_1}')
+        self.logger.info(f'Mean rank: {mean_rank}')
+        self.logger.info(f'Mean reciprocal rank: {mean_reciprocal_rank}')
+
+        results = {'H@1': hit_1, 'H@3': hit_3, 'H@10': hit_10,
+                   'MR': mean_rank, 'MRR': mean_reciprocal_rank}
+
+        return results
+
     def eval(self, model):
         """
         trained model
         """
         if self.dataset.test_data:
-            results = self.evaluate_one_to_n(model, self.dataset.test_data,
-                                             'Standard Link Prediction evaluation on Testing Data')
+            if self.kwargs['scoring_technique'] == 'KvsAll':
+                results = self.evaluate_one_to_n(model, self.dataset.test_data,
+                                                 'Standard Link Prediction evaluation on Testing Data')
+            elif self.neg_sample_ratio > 0:
+
+                results = self.evaluate_standard(model, self.dataset.test_data,
+                                                 'Standard Link Prediction evaluation on Testing Data')
+            else:
+                raise ValueError
+
             with open(self.storage_path + '/results.json', 'w') as file_descriptor:
                 num_param = sum([p.numel() for p in model.parameters()])
                 results['Number_param'] = num_param
                 results.update(self.kwargs)
                 json.dump(results, file_descriptor)
 
+    def val(self, model):
+        """
+        Validation
+        """
+        model.eval()
+        if self.dataset.valid_data:
+            if self.kwargs['scoring_technique'] == 'KvsAll':
+                self.evaluate_one_to_n(model, self.dataset.valid_data,
+                                       'KvsAll Link Prediction validation on Validation')
+            elif self.neg_sample_ratio > 0:
+                self.evaluate_standard(model, self.dataset.valid_data,
+                                       'Standard Link Prediction validation on Validation Data')
+            else:
+                raise ValueError
+        model.train()
+
     def train(self, model):
         """ Training."""
         if self.cuda:
             model.cuda()
-
         model.init()
         if self.optim == 'Adam':
             self.optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate)
@@ -170,12 +272,14 @@ class Experiment:
         with open(self.storage_path + '/settings.json', 'w') as file_descriptor:
             json.dump(self.kwargs, file_descriptor)
 
+        self.describe()
         if self.kwargs['scoring_technique'] == 'KvsAll':
             model = self.k_vs_all_training_schema(model)
-        # We may implement the negative sampling technique.
+        elif self.neg_sample_ratio > 0:
+            model = self.negative_sampling_training_schema(model)
         else:
-            raise ValueError
-
+            s = self.kwargs["scoring_technique"]
+            raise ValueError(f'scoring_technique is not valid ***{s}**')
         # Save the trained model.
         torch.save(model.state_dict(), self.storage_path + '/model.pt')
         # Save embeddings of entities and relations in csv file.
@@ -207,6 +311,8 @@ class Experiment:
             model = Tucker(self.kwargs)
         elif self.model == 'Complex':
             model = Complex(self.kwargs)
+        elif self.model == 'TransE':
+            model = TransE(self.kwargs)
         else:
             print(self.model, ' is not valid name')
             raise ValueError
@@ -248,6 +354,61 @@ class Experiment:
             if self.decay_rate:
                 self.scheduler.step()
             losses.append(loss_of_epoch)
+        self.logger.info('Loss at {0}.th epoch:{1}'.format(it, loss_of_epoch))
+        np.savetxt(fname=self.storage_path + "/loss_per_epoch.csv", X=np.array(losses), delimiter=",")
+        model.eval()
+        return model
+
+    def negative_sampling_training_schema(self, model):
+        model.train()
+
+        self.logger.info('negative_sampling_training_schema starts')
+        train_data_idxs = np.array(self.get_data_idxs(self.dataset.train_data))
+        losses = []
+
+        batch_loader = DataLoader(
+            DatasetTriple(data=train_data_idxs),
+            batch_size=self.batch_size, num_workers=self.num_of_workers,
+            shuffle=True, drop_last=True)
+
+        # To indicate that model is not trained if for if self.num_of_epochs=0
+        loss_of_epoch, it = -1, -1
+
+        printout_it = self.num_of_epochs // 10
+        for it in range(1, self.num_of_epochs + 1):
+            loss_of_epoch = 0.0
+
+            for (h, r, t) in batch_loader:
+                label = torch.ones((len(h),))*self.positive_label
+                # Generate Negative Triples
+                corr = torch.randint(0, len(self.entity_idxs), (self.batch_size * self.neg_sample_ratio, 2))
+
+                # 2.1 Head Corrupt:
+                h_head_corr = corr[:, 0]
+                r_head_corr = r.repeat(self.neg_sample_ratio, )
+                t_head_corr = t.repeat(self.neg_sample_ratio, )
+                label_head_corr = torch.ones(len(t_head_corr), )*self.negative_label
+
+                # 2.2. Tail Corrupt
+                h_tail_corr = h.repeat(self.neg_sample_ratio, )
+                r_tail_corr = r.repeat(self.neg_sample_ratio, )
+                t_tail_corr = corr[:, 1]
+                label_tail_corr = torch.ones(len(t_tail_corr), )*self.negative_label
+
+                # 3. Stack True and Corrupted Triples
+                h = torch.cat((h, h_head_corr, h_tail_corr), 0)
+                r = torch.cat((r, r_head_corr, r_tail_corr), 0)
+                t = torch.cat((t, t_head_corr, t_tail_corr), 0)
+                label = torch.cat((label, label_head_corr, label_tail_corr), 0)
+
+                self.optimizer.zero_grad()
+                batch_loss = model.forward_triples_and_loss(h, r, t, label)
+                loss_of_epoch += batch_loss.item()
+                batch_loss.backward()
+                self.optimizer.step()
+            if it % printout_it == 0:
+                self.val(model)
+
         self.logger.info('Loss at {0}.th epoch:{1}'.format(it, loss_of_epoch))
         np.savetxt(fname=self.storage_path + "/loss_per_epoch.csv", X=np.array(losses), delimiter=",")
         model.eval()

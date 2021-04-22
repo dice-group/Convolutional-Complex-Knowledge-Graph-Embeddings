@@ -10,8 +10,6 @@ np.random.seed(seed)
 torch.manual_seed(seed)
 
 
-# Tucker implementation obtained from https://github.com/ibalazevic/TuckER/blob/master/model.py.
-# DistMult implementation obtained from https://github.com/TimDettmers/ConvE/blob/master/model.py
 class Distmult(torch.nn.Module):
     def __init__(self, param):
         super(Distmult, self).__init__()
@@ -55,6 +53,73 @@ class Distmult(torch.nn.Module):
     def get_embeddings(self):
         return self.emb_ent_real.weight.data, self.emb_rel_real.weight.data
 
+    def forward_triples(self, *, e1_idx, rel_idx, e2_idx):
+        # (1)
+        # (1.1) Real embeddings of head entities
+        emb_head = self.emb_ent_real(e1_idx)
+        # (1.2) Real embeddings of relations
+        emb_rel = self.input_dp_rel_real(self.bn_rel_real(self.emb_rel_real(rel_idx)))
+        # (1.3) Real embeddings of tail entities
+        emb_tail = self.input_dp_ent_real(self.bn_ent_real(self.emb_ent_real(e2_idx)))
+        # Compute multi-linear product embeddings
+        return torch.sigmoid((emb_head * emb_rel * emb_tail).sum(dim=1))
+
+    def forward_triples_and_loss(self, e1_idx, rel_idx, e2_idx, targets):
+        scores = self.forward_triples(e1_idx=e1_idx, rel_idx=rel_idx, e2_idx=e2_idx)
+        return self.loss(scores, targets)
+
+
+class TransE(torch.nn.Module):
+    """
+    TransE trained with binary cross entropy
+    """
+
+    def __init__(self, param):
+        super(TransE, self).__init__()
+        self.name = 'TransE'
+        self.param = param
+        self.embedding_dim = self.param['embedding_dim']
+        self.num_entities = self.param['num_entities']
+        self.num_relations = self.param['num_relations']
+        # Real embeddings of entities
+        self.emb_ent_real = nn.Embedding(self.num_entities, self.embedding_dim)  # real
+        # Real embeddings of relations.
+        self.emb_rel_real = nn.Embedding(self.num_relations, self.embedding_dim)  # real
+
+        self.gamma = nn.Parameter(
+            torch.Tensor([self.param['gamma']]),
+            requires_grad=False
+        )
+
+        self.loss = torch.nn.BCELoss()
+
+    def init(self):
+        xavier_normal_(self.emb_ent_real.weight.data)
+        xavier_normal_(self.emb_rel_real.weight.data)
+
+    def get_embeddings(self):
+        return self.emb_ent_real.weight.data, self.emb_rel_real.weight.data
+
+    def forward_triples(self, *, e1_idx, rel_idx, e2_idx):
+        # (1)
+        # (1.1) Real embeddings of head entities
+        emb_head = self.emb_ent_real(e1_idx)
+        # (1.2) Real embeddings of relations
+        emb_rel = self.emb_rel_real(rel_idx)
+        # (1.3) Real embeddings of tail entities
+        emb_tail = self.emb_ent_real(e2_idx)
+        distance = torch.norm((emb_head + emb_rel) - emb_tail, p=1, dim=1)
+        score = self.gamma.item() - distance
+        # If distance is very small , then score is very high, i.e. 1.0
+        # If distance is very large, then score is very small, i.e. 0.0
+        return torch.sigmoid(score)
+
+    def forward_triples_and_loss(self, e1_idx, rel_idx, e2_idx, target):
+        score = self.forward_triples(e1_idx=e1_idx, rel_idx=rel_idx, e2_idx=e2_idx)
+        return self.loss(score, target)
+
+    def forward_head_and_loss(self, *args, **kwargs):
+        raise NotImplementedError('KvsAll is not implemented for TransE')
 
 class Tucker(torch.nn.Module):
     def __init__(self, param):
@@ -106,4 +171,10 @@ class Tucker(torch.nn.Module):
         return self.loss(self.forward_head_batch(e1_idx=e1_idx, rel_idx=rel_idx), targets)
 
     def get_embeddings(self):
-        return self.E .weight.data, self.R.weight.data
+        return self.E.weight.data, self.R.weight.data
+
+    def forward_triples(self, *args,**kwargs):
+        raise NotImplementedError('Negative Sampling is not implemented for Tucker')
+
+    def forward_triples_and_loss(self, *args,**kwargs):
+        raise NotImplementedError('Negative Sampling is not implemented for Tucker')
