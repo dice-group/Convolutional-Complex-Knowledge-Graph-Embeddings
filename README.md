@@ -26,7 +26,7 @@ The code is compatible with Python 3.6.4.
 - [Lymphography embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/ConEx_Lymphography.zip)
 - [Mammographic embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/ConEx_Mammographic.zip)
 - [Animals embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/Animals.zip)
-- [YAGO3-10 embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/ConEx_Animals.zip)
+- [YAGO3-10 embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/YAGO3-10.zip)
 - [FB15K-237 embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/FB15K-237.zip)
 - [FB15K embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/FB15K.zip)
 - [WN18RR embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/WN18RR.zip)
