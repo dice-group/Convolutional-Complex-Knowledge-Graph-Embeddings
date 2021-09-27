@@ -3,6 +3,11 @@ from util.data import Data
 import traceback
 from sklearn.model_selection import ParameterGrid
 
+torch.backends.cudnn.deterministic = True
+seed = 1
+np.random.seed(seed)
+torch.manual_seed(seed)
+
 datasets = ['FB15k-237', 'WN18RR', 'YAGO3-10', 'FB15k', 'WN18']
 models = ['ConEx']
 
