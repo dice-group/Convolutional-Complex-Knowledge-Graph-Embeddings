@@ -1,7 +1,7 @@
-# Convolutional Complex Knowledge Graph Embeddings
+# [Convolutional Complex Knowledge Graph Embeddings](https://arxiv.org/abs/2008.03130)
 This open-source project contains the Pytorch implementation of our approach (ConEx), training and evaluation scripts.
-We added ConEx into [Knowledge Graph Embeddings at Scale](https://github.com/dice-group/DAIKIRI-Embedding) library to ease the deployment of ConEx.
-
+We added ConEx into [Knowledge Graph Embeddings at Scale](https://github.com/dice-group/DAIKIRI-Embedding) open-source project to ease the deployment and the distributed computing.
+Therein, we provided pre-trained models on many knowledge graphs
 
 ## Link Prediction Results
 In the below, we provide a brief overview of the link prediction results. Results are sorted in descending order of the size of the respective dataset.
@@ -164,4 +164,4 @@ year={2021},
 url={https://openreview.net/forum?id=6T45-4TFqaX}}
 ```
 
-For any further questions or suggestions, please contact:  ```caglar.demir@upb.de```
+For any further questions or suggestions, please contact:  ```caglar.demir@upb.de``` or ```caglardemir8@gmail.com```
